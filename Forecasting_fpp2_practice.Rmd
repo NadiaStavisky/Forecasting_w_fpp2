@@ -1,0 +1,282 @@
+---
+title: "Forecasting_fpp2_practice"
+author: "Nadia Stavisky"
+date: "May 10, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#setup working directory
+check and set up working directory 
+
+```{r, echo = FALSE}
+setwd("C:/Users/nstavisky/OneDrive - Facebook/Study/R")
+getwd()
+```
+#ALL examples assume using library fpp2
+install and load library fpp2
+```{r, echo = TRUE}
+install.packages("fpp2")
+library(fpp2)
+packageDescription("fpp2")
+```
+
+#create time series object ts
+
+```{r}
+?ts
+y <- ts(c(123,39,78,52,110), start =2012)
+```
+#dataset info
+check summary information about data sets used in examples
+```{r}
+dim(melsyd)
+head(melsyd)
+summary(melsyd)
+
+dim(a10)
+head(a10)
+summary(a10)
+```
+
+#Time plots
+```{r}
+?autoplot
+autoplot(melsyd[,"Economy.Class"])+
+  ggtitle("Economy class passengers: Melbourne-Sydney") +
+  xlab("Year") +
+  ylab("Thousands")
+
+autoplot(a10) +
+  ggtitle("Antidiabetic drug sales") +
+  ylab("$ million") +
+  xlab("Year")
+```
+#Seasonal plots
+```{r}
+?ggseasonplot
+ggseasonplot(a10, year.labels=TRUE, year.labels.left=TRUE) +
+  ylab("$ million") +
+  ggtitle("Seasonal plot: antidiabetic drug sales")
+
+ggseasonplot(a10, polar=TRUE) +
+  ylab("$ million") +
+  ggtitle("Polar seasonal plot: antidiabetic drug sales")
+
+ggsubseriesplot(a10) +
+  ylab("$ million") +
+  ggtitle("Seasonal subseries plot: antidiabetic drug sales")
+
+autoplot(elecdemand[,c("Demand","Temperature")], facets=TRUE) +
+  xlab("Year: 2014") + ylab("") +
+  ggtitle("Half-hourly electricity demand: Victoria, Australia")
+
+qplot(Temperature, Demand, data=as.data.frame(elecdemand)) +
+  ylab("Demand (GW)") + xlab("Temperature (Celsius)")
+
+autoplot(visnights[,1:5], facets=TRUE) +
+  ylab("Number of visitor nights each quarter (millions)")
+```
+#Scater plots [Correlation]
+```{r}
+install.packages("GGally")
+library(GGally)
+GGally::ggpairs(as.data.frame(visnights[,1:5]))
+```
+#lag plots
+```{r}
+beer2 <- window(ausbeer, start=1992)
+gglagplot(beer2)
+```
+#autocorrelation
+```{r}
+ggAcf(beer2)
+
+aelec <- window(elec, start=1980)
+autoplot(aelec) + xlab("Year") + ylab("GWh")
+
+ggAcf(aelec, lag=48)
+```
+#White noise
+```{r}
+set.seed(30)
+y <- ts(rnorm(50))
+autoplot(y) + ggtitle("White noise")
+
+ggAcf(y)
+```
+
+#Exercises:
+?gold
+?woolyrnq
+?gas
+ #1 ploting all datasets
+head(gold)
+str(gold)
+?autoplot
+autoplot(ts(gold, start=c(1985,1), frequency = 365))
+frequency(gold)
+
+head(woolyrnq)
+autoplot(woolyrnq)
+frequency(woolyrnq)
+
+head(gas)
+autoplot(gas)
+frequency(gas)
+
+bookurl <- "http://otexts.com/fpp2/extrafiles/tute1.csv"
+
+#checking for and creating directories
+if(!file.exists("otexts")){
+  dir.create("otexts")
+}
+
+?download.file
+download.file(bookurl, destfile = "./otexts/tutel.csv")
+tutel <- read.csv("./otexts/tutel.csv", header = TRUE)
+head(tutel)
+View(tutel)
+
+#convert into ts
+tutelTS <- ts(tutel[,-1], start = 1981, frequency = 4)
+
+#construct time series plot
+?autoplot
+
+autoplot(tutelTS, facets = TRUE)
+
+install.packages("readxl")
+library(readxl)
+
+retailurl <- "https://otexts.com/fpp2/extrafiles/retail.xlsx"
+download.file(retailurl, destfile = "./otexts/retail.xlsx", method="curl")
+retail <- readxl::read_excel("./otexts/retail.xlsx", skip = 1)
+head(retail)
+range(retail$`Series ID`)
+retailTS <- ts(retail[,"A3349799R"], frequency = 12, start = c(1982,4))
+par(mfrow=c(2,3))
+autoplot(retailTS)
+ggseasonplot(retailTS)
+ggsubseriesplot(retailTS)
+gglagplot(retailTS)
+ggAcf(retailTS)
+
+help("bicoal")
+head(bicoal)
+autoplot(bicoal)
+autoplot(chicken)
+
+###The forecaster's toolbox
+##simple forecasting methods
+#Average method
+forecasts of all future values are equal to the average (or "mean") of the historical data
+```{r}
+y <- ts(c(123,39,78,52,110), start =2012)
+h <- 1
+meanf(y, h)
+plot(meanf(y, h))
+# y contains the time series
+# h is the forecast horizon
+```
+
+#naive method
+all forecasts to be the value of the last observation
+```{r}
+naive(y, h)
+plot(naive(y, h))
+rwf(y, h) # Equivalent alternative
+```
+
+#Seasonal naïve method
+each forecast to be equal to the last observed value from the same season of the year
+```{r}
+snaive(y, h)
+plot(snaive(y,h))
+```
+
+#Drift method
+A variation on the naïve method is to allow the forecasts to increase or decrease over time, where the amount of change over time (called the drift) is set to be the average change seen in the historical data.
+
+```{r}
+rwf(y, h, drift=TRUE)
+plot(rwf(y, h, drift=TRUE))
+```
+#Examples
+briefly check ausbeer dataset
+```{r}
+class(ausbeer)
+dim(ausbeer)
+names(ausbeer)
+head(ausbeer)
+tail(ausbeer)
+str(ausbeer)
+summary(ausbeer)
+```
+set training data from ausbeer 1992 to 2007
+plot forecasts
+```{r}
+beerFCST <- window(ausbeer, start=1992, end=c(2007,4))
+autoplot(beerFCST) + 
+  autolayer(meanf(beerFCST, h=11),
+            series = "Mean", PI=FALSE) + 
+  autolayer(naive(beerFCST, h=11),
+            series="Naive", PI=FALSE) + 
+  autolayer(snaive(beerFCST, h=11),
+            series="Seasonal naive", PI=FALSE) + 
+  ggtitle("Forecasts for quarterly beer production") + 
+  xlab("Year") + ylab("Megaliters") + 
+  guides(color=guide_legend(title="Forecast"))
+
+```
+Non-seasonal methods:
+briefly check goog200 dataset
+```{r}
+class(goog200)
+dim(goog200)
+names(goog200)
+head(goog200)
+tail(goog200)
+str(goog200)
+summary(goog200)
+```
+```{r}
+autoplot(goog200) + 
+  autolayer(meanf(goog200, h=40),
+            series="Mean", PI=FALSE) + 
+  autolayer(rwf(goog200, h=40),
+            series="Naive", PI=FALSE) + 
+  autolayer(rwf(goog200, drift=TRUE, h=40),
+            series="Drift", PI=FALSE) +
+  ggtitle("Google stock (daily ending 6 Dec 2013)") + 
+  xlab("Day") + ylab("Closing Price(US$)") + 
+  guides(colour=guide_legend(title="Forecast"))
+
+
+```
+##Transformations and adjastments
+#Calendar adjustment
+```{r}
+?milk
+dframe <- cbind(Monthly = milk,
+                DailyAverage = milk/monthdays(milk))
+  autoplot(dframe, facet=TRUE) +
+    xlab("Years") + ylab("Pounds") +
+    ggtitle("Milk production per cow")
+  
+```
+#Population adjustments
+Any data that are affected by population changes can be adjusted to give per-capita data.
+
+#Inflation adjustments
+
+
+
+
+
+
+
+
