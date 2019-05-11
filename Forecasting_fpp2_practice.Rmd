@@ -272,11 +272,32 @@ dframe <- cbind(Monthly = milk,
 Any data that are affected by population changes can be adjusted to give per-capita data.
 
 #Inflation adjustments
+Data which are affected by the value of money are best adjusted before modelling.
 
+#Mathematical transformations
+If the data show variation that increases or decreases with the level of the series, then a transformation can be useful.
+A useful family of transformations, that includes both logarithms and power transformations, is the family of Box-Cox transformations, which depend on the parameter ??.
+A good value of ?? is one which makes the size of the seasonal variation about the same across the whole series, as that makes the forecasting model simpler. In this case,  
+The BoxCox.lambda() function will choose a value of lambda for you.
 
+```{r}
+autoplot(elec)
+lambda <- BoxCox.lambda(elec)
+autoplot(BoxCox(elec,lambda))
+```
 
+Having chosen a transformation, we need to forecast the transformed data. Then, we need to reverse the transformation (or back-transform) to obtain forecasts on the original scale. 
 
-
-
+#Bias adjustments
+One issue with using mathematical transformations such as Box-Cox transformations is that the back-transformed point forecast will not be the mean of the forecast distribution. In fact, it will usually be the median of the forecast distribution (assuming that the distribution on the transformed space is symmetric).
+```{r}
+fc <- rwf(eggs, drift=TRUE, lambda=0, h=50, level=80)
+fc2 <- rwf(eggs, drift=TRUE, lambda=0, h=50, level=80,
+  biasadj=TRUE)
+autoplot(eggs) +
+  autolayer(fc, series="Simple back transformation") +
+  autolayer(fc2, series="Bias adjusted", PI=FALSE) +
+  guides(colour=guide_legend(title="Forecast"))
+```
 
 
