@@ -299,5 +299,261 @@ autoplot(eggs) +
   autolayer(fc2, series="Bias adjusted", PI=FALSE) +
   guides(colour=guide_legend(title="Forecast"))
 ```
+##Residual diagnostics
+#Fitted values
+Each observation in a time series can be forecast using all previous observations.We call these fitted value.
+The "residuals" in a time series model are what is left over after fitting a model.
+Residuals are useful in checking whether a model has adequately captured the information in the data.
+A good forecasting method will yield residuals with the following properties:
+The residuals are uncorrelated. If there are correlations between residuals, then there is information left in the residuals which should be used in computing forecasts.
+The residuals have zero mean. If the residuals have a mean other than zero, then the forecasts are biased.
+preffered to have:
+The residuals have constant variance.
+The residuals are normally distributed.
+
+#Example: Forecasting the Google daily closing stock price
+```{r}
+autoplot(goog200) +
+  xlab("Day") + ylab("Closing Price (US$)") +
+  ggtitle("Google Stock (daily ending 6 December 2013)")
+```
+```{r}
+res <- residuals(naive(goog200))
+autoplot(res) + xlab("Day") + ylab("") + ggtitle("Residuals from naive method")
+```
+
+```{r}
+gghistogram(res) + ggtitle("Histogram of residuals")
+```
+```{r}
+ggAcf(res) + ggtitle("ACF of residuals")
+```
+
+Portmanteau test for autocorrelation
+test whether the first h autocorrelations are significantly different from what would be expected from a white noise process.
+One of test in this group is the Box-Pierce test. Q = T * SUM(rk^2)(h<k<=1)
+Where h is a maximum lag being considered and T is the number of observations. If each rk is close to 0, then Q will be small.
+the related and more accurate test is the Ljung-Box test. Large values of Q* suggest that the autocorrelations do not come from a white m=noise series.
+How large is too large? If the autocorrelations did come from a white noise series, then both Q and Q* would have a x^2 distribution with (h-K) degrees of freedom, where K is the number of parameters in the model.
+
+For the goog200 data the naive model has no parameters, so K = 0
+```{r}
+res <- residuals(naive(goog200))
+# lag=h and fitdf = K
+Box.test(res, lag = 10, fitdf=0)
+```
+
+```{r}
+Box.test(res, lag = 10, fitdf = 0, type = "Lj")
+
+```
+for both Q and Q*, the results are not significant (the p-values are too large) => the residuals are not distinguishable from a white noise series.
+
+```{r}
+checkresiduals(naive(goog200))
+```
+## Evaluating forecast accuracy
+#training and test sets
+80%/20%
+The accuracy of forecasts can be determind by considering how well a model performs on new data (test data set) that were not used when fitting the model (training data set)
+
+#Functions to subset a time series
+```{r}
+window(ausbeer, start = 1995)
+subset(ausbeer, start = length(ausbeer)-4*5)
+subset(ausbeer, quarter = 1)
+tail(ausbeer, 4*5)
+```
+#Forecast errors
+Aforecast "error" is the difference between an observed value and its forecast. 
+Difference between residuals and forecast errors:
+1. residuals are calculated on the training set and forecasts errors are clculated on the test set.
+2. residuals based on one step forecast while forecast errors can involve multi-step forecasts.
+
+#Scale-dependent errors
+Mean absolute error: MAE = mean(|et|)
+Root mean squared error: RMSE = sqrt(mean(et^2))
+#percentage errors
+pt = 100et/yt
+Mean absolute percentage error: MAPE = mean(|pt|)
+"symetric" MAPE: sMAPE = mean(200|yt - yt^|/(yt - yt^)) not used in the further excersises)
+#Scaled errors
+scalling the errors based on the training MAE from simple forecast method
+For non-seasonal time series to define a scaled error used naive forecast, for seasonal - seasonal naive forecasts.
+A scaled error less then 1 arises from a better foracasts.
+
+#Examples:
+```{r}
+#subseting for training data set:
+beer2 <- window(ausbeer, start =1992, end = c(2007,4))
+#avarage method (data, h = forecast horizon)
+beerfit1 <- meanf(beer2, h = 10)
+#naive method
+beerfit2 <- rwf(beer2, h = 10)
+#seasonal naive
+beerfit3 <- snaive(beer2, h = 10)
+autoplot(window(ausbeer, start=1992)) + 
+  autolayer(beerfit1, series = "Mean", PI = FALSE) +
+  autolayer(beerfit2, series = "Naive", PI = FALSE) + 
+  autolayer(beerfit3, series = "Seasonal Naive", PI = FALSE) +
+  xlab("YEar") + ylab("Megalitres") + 
+  ggtitle("Forecasts for quarterly beer production") + 
+  guides(color = guide_legend(title="Forecast"))
+```
+forecast accuracy measures:
+```{r}
+beer3 <- window(ausbeer, start=2008)
+accuracy(beerfit1, beer3)
+accuracy(beerfit2, beer3)
+accuracy(beerfit3, beer3)
+```
+
+non seasonal example:
+
+```{r}
+googfc1 <- meanf(goog200, h=40)
+googfc2 <- rwf(goog200, h=40)
+googfc3 <- rwf(goog200, drift=TRUE, h=40)
+autoplot(subset(goog, end = 240)) +
+  autolayer(googfc1, PI=FALSE, series="Mean") +
+  autolayer(googfc2, PI=FALSE, series="Naïve") +
+  autolayer(googfc3, PI=FALSE, series="Drift") +
+  xlab("Day") + ylab("Closing Price (US$)") +
+  ggtitle("Google stock price (daily ending 6 Dec 13)") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+forecast accuracy measures:
+```{r}
+googtest <- window(goog, start=201, end=240)
+accuracy(googfc1, googtest)
+accuracy(googfc2, googtest)
+accuracy(googfc3, googtest)
+
+```
+
+#Time series cross-validation
+```{r}
+e <- tsCV(goog200, rwf, drift = TRUE, h = 1)
+sqrt(mean(e^2, na.rm = TRUE))
+sqrt(mean(residuals(rwf(goog200, drift = TRUE))^2, na.rm = TRUE))
+```
+
+#Time series cross-validation: an R example
+```{r}
+library(fpp2) # To load the data set a10
+plot(a10, ylab="$ million", xlab="Year", main="Antidiabetic drug sales")
+plot(log(a10), ylab="", xlab="Year", main="Log Antidiabetic drug sales")
+```
+Applying time series CV and comparing 1-step, 2-step, ., 12-step forecasts using the Mean Absolute Error (MAE)
+Comparing 
+(1) a linear model containing trend and seasonal dummies applied to the log data; 
+(2) an ARIMA model applied to the log data; and 
+(3) an ETS model applied to the original data.
+
+```{r}
+k <- 60 # minimum data length for fitting a model
+n <- length(a10)
+mae1 <- mae2 <- mae3 <- matrix(NA,n-k,12)
+st <- tsp(a10)[1]+(k-2)/12
+
+```
+
+```{r}
+for(i in 1:(n-k))
+{
+  xshort <- window(a10, end=st + i/12)
+  xnext <- window(a10, start=st + (i+1)/12, end=st + (i+12)/12)
+  fit1 <- tslm(xshort ~ trend + season, lambda=0)
+  fcast1 <- forecast(fit1, h=12)
+  fit2 <- Arima(xshort, order=c(3,0,1), seasonal=list(order=c(0,1,1), period=12),
+      include.drift=TRUE, lambda=0, method="ML")
+  fcast2 <- forecast(fit2, h=12)
+  fit3 <- ets(xshort,model="MMM",damped=TRUE)
+  fcast3 <- forecast(fit3, h=12)
+  mae1[i,1:length(xnext)] <- abs(fcast1[['mean']]-xnext)
+  mae2[i,1:length(xnext)] <- abs(fcast2[['mean']]-xnext)
+  mae3[i,1:length(xnext)] <- abs(fcast3[['mean']]-xnext)
+}
+
+plot(1:12, colMeans(mae1,na.rm=TRUE), type="l", col=2, xlab="horizon", ylab="MAE",
+     ylim=c(0.65,1.05))
+lines(1:12, colMeans(mae2,na.rm=TRUE), type="l",col=3)
+lines(1:12, colMeans(mae3,na.rm=TRUE), type="l",col=4)
+legend("topleft",legend=c("LM","ARIMA","ETS"),col=2:4,lty=1)
+```
+#Pipe operator
+```{r}
+goog200 %>% tsCV(forecastfunction = rwf, drift = TRUE, h = 1) ->e
+e^2 %>% mean(na.rm = TRUE) %>% sqrt()
+
+goog200 %>% rwf(drift = TRUE) %>% residuals() -> res
+res^2 %>% mean(na.rm = TRUE) %>% sqrt()
+```
+# Example: using tsCV()
+The goog200 data, plotted in Figure 3.5, includes daily closing stock price of Google Inc from the NASDAQ exchange for 200 consecutive trading days starting on 25 February 2013.
+
+The code below evaluates the forecasting performance of 1- to 8-step-ahead naïve forecasts with tsCV(), using MSE as the forecast error measure. The plot shows that the forecast error increases as the forecast horizon increases, as we would expect.
+
+```{r}
+e <- tsCV(goog200, forecastfunction=naive, h=8)
+# Compute the MSE values and remove missing values
+mse <- colMeans(e^2, na.rm = T)
+# Plot the MSE values against the forecast horizon
+data.frame(h = 1:8, MSE = mse) %>%
+  ggplot(aes(x = h, y = MSE)) + geom_point()
+```
+## PRediction intervals
+
+A  prediction interval gives an interval within which we expect yt to lie with a specified probability.
+Assuming that forecast errors are normally distributed, a 95% prediction interval for the h-stepp forecast is: y^[T=h/T]+-c*q^[h], where q^[h] is an estimate of the standard deviation of the h-step forecast distribution and c a multiplie depends on the coverage of the probability.
+The value of prediction intervals is that they express the uncertainty in the forecasts. If we only produce point forecasts, there is no way of telling how accurate the forecasts are.
+
+# One-step prediction intervals
+When forecasting one step ahead, the standard deviation of the forecast distribution is almost the same as the standard deviation of the residuals. (In fact, the two standard deviations are identical if there are no parameters to be estimated, as is the case with the naïve method. For forecasting methods involving parameters to be estimated, the standard deviation of the forecast distribution is slightly larger than the residual standard deviation, although this difference is often ignored.)
+
+#Multi-step prediction ontervals
+A common feature of prediction intervals is that they increase in length as the forecast horizon increases. The further ahead we forecast, the more uncertainty is associated with the forecast, and thus the wider the prediction intervals. That is, ??h usually increases with  h (although there are some non-linear forecasting methods that do not have this property).
+To produce a prediction interval, it is necessary to have an estimate of ??h. As already noted, for one-step forecasts (h=1), the residual standard deviation provides a good estimate of the forecast standard deviation ??1. For multi-step forecasts, a more complicated method of calculation is required. These calculations assume that the residuals are uncorrelated.
+
+#Benchmark methods
+Mean forecast: q^[h] = q^ * sqrt(1+1/T)
+Naive foecast: q^[h] = q^ * sqrt(h)
+Seasonal naive forecast: q^[h] = q^ * sqrt(k+1) where k is the integer part of(h-1)m
+Drift forecast: q^[h] = q^ * sqrt(h*(1+1/T))
+
+```{r}
+naive(goog200)
+```
+```{r}
+autoplot(naive(goog200))
+```
+
+#Prediction intervals from bootstrapped residuals
+
+When a normal distribution for the forecast errors is an unreasonable assumption, one alternative is to use bootstrapping, which only assumes that the forecast errors are uncorrelated.
+
+A forecast error is defined as et = yt - y^[t|t-1] => yt = y^[t|t-1] + et => y[T+1] = y^[T+1|T] + e[T+1] where y^[T+1|T]the one-stap forecast and e[T+1] is unknown future error. We can compute prediction intervals by calculating percentiles for each forecast horizon. The result is called a bootstrapped prediction interval. The name "bootstrap" is a reference to pulling ourselves up by our bootstraps, because the process allows us to measure future uncertainty by only using the historical data.
+
+```{r}
+naive(goog200, bootstrap = TRUE)
+```
+
+#Prediction intervals with transformations
+
+If a transformation has been used, then the prediction interval should be computed on the transformed scale, and the end points back-transformed to give a prediction interval on the original scale. This approach preserves the probability coverage of the prediction interval, although it will no longer be symmetric around the point forecast.
+
+The back-transformation of prediction intervals is done automatically using the functions in the forecast package in R, provided you have used the lambda argument when computing the forecasts.
+
+
+##The forecast package in R
+
+
+
+
+
+
+
+
+
 
 
