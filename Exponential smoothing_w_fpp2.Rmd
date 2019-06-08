@@ -1,0 +1,234 @@
+---
+title: "ExponentialSmoothing"
+author: "Nadia Stavisky"
+date: "June 7, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+activate library
+```{r}
+library(fpp2)
+```
+
+## Simple exponential smoothing
+
+
+The simplest of the exponentially smoothing methods is naturally called simple exponential smoothing (SES)13. This method is suitable for forecasting data with no clear trend or seasonal pattern. 
+
+```{r}
+oildata <- window(oil, start=1996)
+autoplot(oildata) +
+  ylab("Oil (millions of tonnes)") + xlab("Year")
+```
+Using the naïve method, all forecasts for the future are equal to the last observed value of the series,
+^y[T=h|T]= yT,
+ 
+for h= 1, 2, 3 ..... Hence, the naïve method assumes that the most recent observation is the only important one, and all previous observations provide no information for the future. This can be thought of as a weighted average where all of the weight is given to the last observation.
+
+Using the average method, all future forecasts are equal to a simple average of the observed data,
+y[T=h|T]= 1/T * SUM(yT) [ t=1 to T],
+ 
+for h= 1, 2, 3 ..... Hence, the average method assumes that all observations are of equal importance, and gives them equal weights when generating forecasts.
+
+We often want something between these two extremes. For example, it may be sensible to attach larger weights to more recent observations than to observations from the distant past. This is exactly the concept behind simple exponential smoothing. Forecasts are calculated using weighted averages, where the weights decrease exponentially as observations come from further in the past - the smallest weights are associated with the oldest observations:
+^y[t+1|T] = ??*yT + ??*(1-??)*yt-1 + ??(1-??)^2*yT-2 ...
+
+where 0????????1
+  is the smoothing parameter. The one-step-ahead forecast for time T+1 is a weighted average of all of the observations in the series y1, ..., yT. The rate at which the weights decrease is controlled by the parameter ??.
+
+For any ?? between 0 and 1, the weights attached to the observations decrease exponentially as we go back in time, hence the name "exponential smoothing". If ?? is small (i.e., close to 0), more weight is given to observations from the more distant past. If ?? is large (i.e., close to 1), more weight is given to the more recent observations. For the extreme case where ??=1,  
+^y[T=h|T]= yT, and the forecasts are equal to the naïve forecasts.
+
+
+#Weighted average form
+The forecast at time T+1 is equal to a weighted average between the most recent observation  yT and the previous forecast ^y[T|T-1]
+
+#Component form
+An alternative representation is the component form. For simple exponential smoothing, the only component included is the level, lt. (Other methods which are considered later in this chapter may also include a trend bt and a seasonal component st.) Component form representations of exponential smoothing methods comprise a forecast equation and a smoothing equation for each of the components included in the method. The component form of simple exponential smoothing is given by:
+
+Forecast equation ^y[t+h|t] = lt
+
+Smoothing equation lt = ??*yt + (1-??)*l[t-1]
+
+where  lt is the level (or the smoothed value) of the series at time  t. 
+Setting h=1 gives the fitted values, while setting  t=T gives the true forecasts beyond the training data.
+
+
+#Optimisation
+The application of every exponential smoothing method requires the smoothing parameters and the initial values to be chosen. In particular, for simple exponential smoothing, we need to select the values of ?? and ???0. All forecasts can be computed from the data once we know those values. For the methods that follow there is usually more than one smoothing parameter and more than one initial component to be chosen.
+
+In some cases, the smoothing parameters may be chosen in a subjective manner - the forecaster specifies the value of the smoothing parameters based on previous experience. However, a more reliable and objective way to obtain values for the unknown parameters is to estimate them from the observed data.
+
+In Section 5.2, we estimated the coefficients of a regression model by minimising the sum of the squared residuals (usually known as SSE or "sum of squared errors"). Similarly, the unknown parameters and the initial values for any exponential smoothing method can be estimated by minimising the SSE. The residuals are specified as et = yt - ^y[t|t-1] for t = 1, ..., T. Hence, we find the values of the unknown parameters and the initial values that minimise SSE = SUM[t=1 to T](yt - ^y[t|t-1])^2 = SUM[t=1 to T]et^2
+
+Example: Oil production
+
+
+```{r}
+oildata <- window(oil, start=1996)
+# Estimate parameters
+fc <- ses(oildata, h=5)
+# Accuracy of one-step-ahead training errors
+round(accuracy(fc),2)
+head(fc)
+```
+
+This gives parameter estimates ^??=0.83 and  ^???0=446.6, obtained by minimising SSE over periods  t=1,2,.,18, subject to the restriction that  0????????1.
+
+```{r}
+autoplot(fc) +
+  autolayer(fitted(fc), series="Fitted") +
+  ylab("Oil (millions of tonnes)") + xlab("Year")
+```
+
+
+## Trend methods
+Holt (1957) extended simple exponential smoothing to allow the forecasting of data with a trend. This method involves a forecast equation and two smoothing equations (one for the level and one for the trend):
+Forecast equation ^y[t+h|t] = lt + h*bt
+Level equation lt = ??*yt +(1-??)*(l[t-1]+b[t-1])
+Trend equation bt = ??* *(lt-l[t-1])+(1-??*)*b[t-1]
+
+where lt denotes an estimate of the level of the series at time t, bt denotes an estimate of the trend (slope) of the series at time t, ?? is the smoothing parameter for the level,  0????????1, and  ????? is the smoothing parameter for the trend,  0???????????1. (We denote this as  ????? instead of  ?? for reasons that will be explained in Section 7.5.)
+
+Example
+```{r}
+air <- window(ausair, start=1990)
+fc <- holt(air, h=5)
+head(fc)
+```
+
+#Damped trend methods
+
+The forecasts generated by Holt's linear method display a constant trend (increasing or decreasing) indefinitely into the future. Empirical evidence indicates that these methods tend to over-forecast, especially for longer forecast horizons. The "dampens" parameter trend to a flat line some time in the future. Methods that include a damped trend have proven to be very successful, and are arguably the most popular individual methods when forecasts are required automatically for many series.
+
+In conjunction with the smoothing parameters ?? and ????? (with values between 0 and 1 as in Holt's method), this method also includes a damping parameter 0<??<1 :
+Forecast equation ^y[t+h|t] = lt + (??+??^2+...+??^h)*bt
+Level equation lt = ??*yt +(1-??)*(l[t-1]+??*b[t-1])
+Trend equation bt = ??* *(lt-l[t-1])+(1-??*)*??*b[t-1]
+
+If ??=1, the method is identical to Holt's linear method. For values between 0 and 1, ?? dampens the trend so that it approaches a constant some time in the future. In fact, the forecasts converge to ???T+??bT/(1?????)  as h??????  for any value 0<??<1. This means that short-run forecasts are trended while long-run forecasts are constant.
+
+In practice,  ??  is rarely less than 0.8 as the damping has a very strong effect for smaller values. Values of  ??  close to 1 will mean that a damped model is not able to be distinguished from a non-damped model. For these reasons, we usually restrict ??  to a minimum of 0.8 and a maximum of 0.98.
+
+
+Example
+
+```{r}
+
+fc <- holt(air, h=15)
+fc2 <- holt(air, damped=TRUE, phi = 0.9, h=15)
+autoplot(air) +
+  autolayer(fc, series="Holt's method", PI=FALSE) +
+  autolayer(fc2, series="Damped Holt's method", PI=FALSE) +
+  ggtitle("Forecasts from Holt's method") + xlab("Year") +
+  ylab("Air passengers in Australia (millions)") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+the forecasting performance of the three exponential smoothing methods
+
+```{r}
+autoplot(livestock) +
+  xlab("Year") + ylab("Livestock, sheep in Asia (millions)")
+```
+
+```{r}
+e1 <- tsCV(livestock, ses, h=1)
+e2 <- tsCV(livestock, holt, h=1)
+e3 <- tsCV(livestock, holt, damped=TRUE, h=1)
+# Compare MSE:
+mean(e1^2, na.rm=TRUE)
+#> [1] 178.3
+mean(e2^2, na.rm=TRUE)
+#> [1] 173.4
+mean(e3^2, na.rm=TRUE)
+#> [1] 162.6
+# Compare MAE:
+mean(abs(e1), na.rm=TRUE)
+#> [1] 8.532
+mean(abs(e2), na.rm=TRUE)
+#> [1] 8.803
+mean(abs(e3), na.rm=TRUE)
+#> [1] 8.024
+```
+
+```{r}
+
+fc <- holt(livestock, damped=TRUE)
+# Estimated parameters:
+fc[["model"]]
+```
+
+```{r}
+
+autoplot(fc) +
+  xlab("Year") + ylab("Livestock, sheep in Asia (millions)")
+```
+
+## Holt-Winters' seasonal method
+The Holt-Winters seasonal method comprises the forecast equation and three smoothing equations - one for the level ???t, one for the trend  bt, and one for the seasonal component  st, with corresponding smoothing parameters  ??,  ????? and ??. We use m to denote the frequency of the seasonality.
+
+# Holt-Winters' additive method
+Forecast equation ^y[t+h|t] = lt + h*bt+s[t+h-m*(k+1)]
+Level equation lt = ??*(yt-s[t-m]) +(1-??)*(l[t-1]+b[t-1])
+Trend equation bt = ??* *(lt-l[t-1])+(1-??*)*b[t-1]
+Seasonal equation st = ??*(yt-l[t-1]-b[t-1])+(1-??)*s[t-m]
+
+where k is the integer part of (h???1)/m, which ensures that the estimates of the seasonal indices used for forecasting come from the final year of the sample. The level equation shows a weighted average between the seasonally adjusted observation  (yt???st???m) and the non-seasonal forecast (???t???1+bt???1) for time  t. The trend equation is identical to Holt's linear method. The seasonal equation shows a weighted average between the current seasonal index, (yt??????t???1???bt???1), and the seasonal index of the same season last year (i.e.,  m time periods ago).
+
+
+#Holt-Winters' multiplicative method
+
+Forecast equation ^y[t+h|t] = (lt + h*bt)*s[t+h-m*(k+1)]
+Level equation lt = ??*(yt/s[t-m]) +(1-??)*(l[t-1]+b[t-1])
+Trend equation bt = ??* *(lt-l[t-1])+(1-??*)*b[t-1]
+Seasonal equation st = ??*(yt/(l[t-1]-b[t-1]))+(1-??)*s[t-m]
+
+Example
+
+```{r}
+
+aust <- window(austourists,start=2005)
+fit1 <- hw(aust,seasonal="additive")
+fit2 <- hw(aust,seasonal="multiplicative")
+autoplot(aust) +
+  autolayer(fit1, series="HW additive forecasts", PI=FALSE) +
+  autolayer(fit2, series="HW multiplicative forecasts",
+    PI=FALSE) +
+  xlab("Year") +
+  ylab("Visitor nights (millions)") +
+  ggtitle("International visitors nights in Australia") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+#Holt-Winters' damped method
+
+Forecast equation ^y[t+h|t] = (lt + (??+??^2+...+??^h)*bt)*s[t+h-m*(k+1)]
+Level equation lt = ??*(yt/s[t-m]) +(1-??)*(l[t-1]+??*b[t-1])
+Trend equation bt = ??* *(lt-l[t-1])+(1-??*)*??*b[t-1]
+Seasonal equation st = ??*(yt/(l[t-1]-??*b[t-1]))+(1-??)*s[t-m]
+
+Example
+```{r}
+
+fc <- hw(subset(hyndsight,end=length(hyndsight)-35),
+         damped = TRUE, seasonal="multiplicative", h=35)
+autoplot(hyndsight) +
+  autolayer(fc, series="HW multi damped", PI=FALSE)+
+  guides(colour=guide_legend(title="Daily forecasts"))
+```
+
+
+
+
+
+
+
+
+
+
+
